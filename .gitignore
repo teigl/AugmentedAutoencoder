@@ -3,6 +3,7 @@ install
 *.pyc
 *.vscode
 *.egg-info
+build/
 /data
 /AAE_workspace
 venv/

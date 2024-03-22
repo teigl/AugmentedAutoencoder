@@ -8,6 +8,7 @@ from . import gl_utils as gu
 
 from .pysixd import misc
 
+# broken return value from load_meshes has changes
 class Renderer(object):
 
 

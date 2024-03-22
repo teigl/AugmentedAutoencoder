@@ -1,10 +1,67 @@
 # Author: Tomas Hodan (hodantom@cmp.felk.cvut.cz)
 # Center for Machine Perception, Czech Technical University in Prague
 
+import os
 import struct
-import itertools
 import numpy as np
 
+def load_mtl(path):
+    materials = {}
+    with open(path) as file:
+
+        for line in file:
+            tokens = line.split()
+            if not len(tokens):
+                continue
+
+            key = tokens[0]
+            if key == 'newmtl':
+                material = tokens[1]
+                materials[material] = {}
+            elif not material: 
+                continue
+            else:
+                materials[material][key] = [float(x) for x in tokens[1:]]
+    return materials
+
+def load_obj(path):
+    obj = {
+        'positions': [],
+        'texcoords': [],
+        'normals': [],
+        'faces': {}
+    }
+    with open(path) as file:
+
+        for line in file:
+
+            tokens = line.split()
+            if not len(tokens):
+                continue
+
+            key = tokens[0]
+            values = tokens[1:]
+
+            if key == 'mtllib':
+                cwd = os.getcwd()
+                os.chdir(os.path.dirname(path))
+                obj['materials'] = load_mtl(tokens[1])
+                os.chdir(cwd)
+            elif key == 'v':
+                obj['positions'].append([float(x) for x in values])
+            elif key == 'vt':
+                obj['texcoords'].append([float(x) for x in values])
+            elif key == 'vn':
+                obj['normals'].append([float(x) for x in values])
+            elif key == 'usemtl':
+                material = values[0]
+                if not material in obj['faces']:
+                    obj['faces'][material] = []
+            elif key == 'f':
+                obj['faces'][material].append([[int(i) for i in value.split("/")] for value in values])
+
+    return obj
+            
 def load_ply(path):
     """
     Loads a 3D mesh model from a PLY file.
