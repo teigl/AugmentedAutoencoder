@@ -4,18 +4,18 @@ import os
 
 from OpenGL.GL import *
 
-import cyglfw3 as glfw
+from glfw.GLFW import *
 
 class OffscreenContext(object):
 
     def __init__(self):
-        assert glfw.Init(), 'Glfw Init failed!'
-        glfw.WindowHint(glfw.VISIBLE, False)
-        self._offscreen_context = glfw.CreateWindow(1, 1, "", None)
+        assert glfwInit(), 'Glfw Init failed!'
+        glfwWindowHint(GLFW_VISIBLE, False)
+        self._offscreen_context = glfwCreateWindow(1, 1, "", None, None)
         assert self._offscreen_context, 'Could not create Offscreen Context!'
-        glfw.MakeContextCurrent(self._offscreen_context)
+        glfwMakeContextCurrent(self._offscreen_context)
 
-        self.previous_second = glfw.GetTime()
+        self.previous_second = glfwGetTime()
         self.frame_count = 0.0
         self._fps = 0.0
 
@@ -24,10 +24,10 @@ class OffscreenContext(object):
         self.update_fps_counter()
 
     def poll_events(self):
-        glfw.PollEvents()
+        glfwPollEvents()
 
     def update_fps_counter(self):
-        current_second = glfw.GetTime()
+        current_second = glfwGetTime()
         elapsed_seconds = current_second - self.previous_second
         if elapsed_seconds > 1.0:
             self.previous_second = current_second
@@ -40,7 +40,7 @@ class OffscreenContext(object):
         return self._fps
 
     def close(self):
-        glfw.Terminate()
+        glfwTerminate()
 
     def __enter__(self):
         return self
