@@ -38,22 +38,38 @@ class Renderer(object):
         self._fbo.bind()
 
         # VAO
-        attributes = gu.geo.load_meshes(models_cad_files, vertex_tmp_store_folder, recalculate_normals=False)
+        if False:
+            attributes = gu.geo.load_meshes(models_cad_files, vertex_tmp_store_folder, recalculate_normals=False)
 
-        vertices = []
-        indices = []
-        for attribute in attributes:
-            vertex = attribute['vertices']
-            if 'colors' in attribute:
-                color = attribute['colors']
-            else:
-                color = np.ones_like(vertex)*160.0
-            indices.append(attribute['faces'].flatten())
+            vertices = []
+            indices = []
+            for attribute in attributes:
+                vertex = attribute['vertices']
+                if 'colors' in attribute:
+                    color = attribute['colors']
+                else:
+                    color = np.ones_like(vertex)*160.0
+                indices.append(attribute['faces'].flatten())
 
-            vertices.append(np.hstack((
-                vertex*vertex_scale, 
-                attribute['normals'], 
-                color/255.0)).flatten())
+                vertices.append(np.hstack((
+                    vertex*vertex_scale, 
+                    attribute['normals'], 
+                    color/255.0)).flatten())
+
+        else:
+            # attributes = gu.geo.load_meshes_sixd(models_cad_files, vertex_tmp_store_folder, recalculate_normals=False)
+            attributes = gu.geo.load_meshes(models_cad_files, vertex_tmp_store_folder, recalculate_normals=False)
+
+            vertices = []
+            indices = []
+            for attribute in attributes:
+                if len(attribute) ==4:
+                    vertex, normal, color, faces = attribute
+                else:
+                    vertex, normal, faces = attribute 
+                    color = np.ones_like(vertex)*160.0
+                indices.append( faces.flatten() )
+                vertices.append(np.hstack((vertex * vertex_scale, normal, color/255.0)).flatten())
 
         indices = np.hstack(indices).astype(np.uint32)
         vertices = np.hstack(vertices).astype(np.float32)
@@ -65,12 +81,14 @@ class Renderer(object):
         vao.bind()
 
         # IBO
-        print([vert[-1].shape for vert in attributes])
-        vertex_count = [np.prod(attribute['vertices'].shape) for attribute in attributes]
+        # print([vert[-1].shape for vert in attributes])
+        # vertex_count = [np.prod(attribute['vertices'].shape) for attribute in attributes]
+        vertex_count = [np.prod(vert[-1].shape) for vert in attributes]
         instance_count = np.ones(len(attributes))
         first_index = [sum(vertex_count[:i]) for i in range(len(vertex_count))]
 
-        vertex_sizes = [attribute['vertices'].shape[0] for attribute in attributes]
+        # vertex_sizes = [attribute['vertices'].shape[0] for attribute in attributes]
+        vertex_sizes = [vert[0].shape[0] for vert in attributes]
         base_vertex = [sum(vertex_sizes[:i]) for i in range(len(vertex_sizes))]
         base_instance = np.zeros(len(attributes))
 

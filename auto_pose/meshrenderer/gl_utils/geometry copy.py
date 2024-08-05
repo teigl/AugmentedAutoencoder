@@ -3,121 +3,98 @@ import os
 import numpy as np
 import hashlib
 
-import pyassimp
-import pyassimp.postprocess
 import progressbar
 
 
 
-def load(filename):
-    scene = pyassimp.load(filename, processing=pyassimp.postprocess.aiProcess_GenUVCoords|pyassimp.postprocess.aiProcess_Triangulate )
-    mesh = scene.meshes[0]
-    return mesh.vertices, mesh.normals, mesh.texturecoords[0,:,:2]
-
-def load_meshes_sixd( obj_files, vertex_tmp_store_folder , recalculate_normals=False):
-    from . import inout
-    hashed_file_name = hashlib.md5( (''.join(obj_files) + 'load_meshes_sixd' + str(recalculate_normals)).encode("utf-8")).hexdigest() + '.npz'
-
-    attributes = []
-    out_file = os.path.join( vertex_tmp_store_folder, hashed_file_name)
-
-    if os.path.exists(out_file):
-        file = np.load(out_file)
-
-        vertices = file['vertices']
-        normals = file['normals']
-        faces = file['faces']
-        colors = file['colors'] if 'colors' in file else None
-        
-        n_objects = vertices.shape[0]
-        for i in range(n_objects):
-            if 'colors' in file:
-                attributes.append((vertices[i], normals[i], colors[i], faces[i]))
-            else:
-                attributes.append((vertices[i], normals[i], faces[i]))
-
-    else:
-        bar = progressbar.ProgressBar()
-
-        vertices = []
-        normals = []
-        faces = []
-        colors = []
-
-        for model_path in bar(obj_files):
-            model = inout.load_ply(model_path) if '.ply' in model_path else inout.load_obj(model_path)
-            vertices.append(np.array(model['pts'] ).astype(np.float32))
-
-            if recalculate_normals:
-                normals.append(calc_normals(vertices[-1]))
-            else:
-                normals.append(np.array(model['normals']).astype(np.float32))
-
-            faces.append(np.array(model['faces']).astype(np.uint32))
-
-            if 'colors' in model:
-                colors.append(np.array(model['colors']).astype(np.uint32))
-                attributes.append( (vertices[-1], normals[-1], colors[-1], faces[-1]) )
-            else:
-                attributes.append( (vertices[-1], normals[-1], faces[-1]) )
-
-        if len(colors) > 0:
-            np.savez(out_file, 
-                    vertices=np.array(vertices), 
-                    normals=np.array(normals), 
-                    faces=np.array(faces), 
-                    colors=np.array(colors))
-        else:
-            np.savez(out_file, 
-                    vertices=np.array(vertices), 
-                    normals=np.array(normals), 
-                    faces=np.array(faces))
-
-    return attributes
-
+# def load(filename):
+#     scene = pyassimp.load(filename, processing=pyassimp.postprocess.aiProcess_GenUVCoords|pyassimp.postprocess.aiProcess_Triangulate )
+#     mesh = scene.meshes[0]
+#     return mesh.vertices, mesh.normals, mesh.texturecoords[0,:,:2]
 
 def load_meshes(obj_files, vertex_tmp_store_folder, recalculate_normals=False):
-    hashed_file_name = hashlib.md5((''.join(obj_files) + 'load_meshes' + str(recalculate_normals)).encode('utf-8') ).hexdigest() + '.npz'
-
+    hashed_file_name = hashlib.md5((''.join(obj_files) + 'load_meshes' + str(recalculate_normals)).encode('utf-8') ).hexdigest() + '.npy'
     out_file = os.path.join( vertex_tmp_store_folder, hashed_file_name)
-    if False and os.path.exists(out_file):
-        return np.load(out_file)
-    else:
-        bar = progressbar.ProgressBar()
-        attributes = []
-        for model_path in bar(obj_files):
+    # if os.path.exists(out_file):
+    #     return np.load(out_file, allow_pickle=True)
+    
+    bar = progressbar.ProgressBar()
+    attributes = []
+    for path in bar(obj_files):
 
-            with pyassimp.load(model_path, pyassimp.postprocess.aiProcess_Triangulate) as scene:
-                print(len(scene.meshes))
-                print(len(scene.meshes))
-                # mesh = scene.meshes[2]
+        ext = os.path.splitext(path)[1]
+        if ext == ".ply":
+            attributes.append(load_ply(path))
+        elif ext == ".obj":
+            attributes.append(load_obj(path))
+        else:
+            attributes.append(load_mesh(path))
 
-                # vertices = []
-                # faces = []
-                # for mesh in scene.meshes:
-                #     faces.append(mesh.faces)
-                #     for face in mesh.faces:
-                #         vertices.extend([mesh.vertices[face[0]], mesh.vertices[face[1]], mesh.vertices[face[2]]])
+        if recalculate_normals:
+            attributes["normals"] = calc_normals(attributes["vertices"])
 
-                # vertices = np.array(mesh.vertices)
-                # normals = calc_normals(vertices) if recalculate_normals else mesh.normals
-                # attributes.append( (vertices, normals, mesh.faces) )
+    np.save(out_file, attributes)
+    return attributes
 
-                vertices = []
-                normals = []
-                faces = []
-                for mesh in scene.meshes:
-                    vertices.extend(mesh.vertices)
-                    normals.extend(mesh.normals)
-                    faces.extend(mesh.faces)
-                attributes.append( (np.array(vertices), np.array(normals), np.array(faces)) )
+def load_obj(path):
+    from . import inout
+    obj = inout.load_obj(path)
 
-                # attributes.append( (np.array(mesh.vertices), np.array(mesh.normals), np.array(mesh.faces)) )
+    positions = obj['positions']
+    normals = [[] for _ in positions]
+    colors = [[] for _ in positions]
+    idcs = []
+    # print(len(obj['positions']))
+    # print(len(normals))
+    # print(len(obj['normals']))
+    for material_name,faces in obj['faces'].items():
+        color = obj['materials'][material_name]['Ka']
+        for face in faces:
+            v0 = face[0][0] - 1
+            v1 = face[1][0] - 1
+            v2 = face[2][0] - 1
+            vn0 = face[0][2] - 1
+            vn1 = face[1][2] - 1
+            vn2 = face[2][2] - 1
+            idcs.append([v0, v1, v2])
+            # print(len(normals), len(obj['normals']))
+            # print(v0, v1, v2)
+            # print(vn0, vn1, vn2)
+            normals[v0] = obj['normals'][vn0]
+            normals[v1] = obj['normals'][vn1]
+            normals[v2] = obj['normals'][vn2]
+    attributes = {
+        'vertices': np.array(positions).astype(np.float32),
+        'normals': np.array(normals).astype(np.float32),
+        'faces': np.array(idcs).astype(np.uint32),
+        'colors': np.array(colors).astype(np.float32)
+    }
+    return attributes
 
+def load_ply(path):
+    from . import inout
+    model = inout.load_ply(path)
+    attributes = {
+        'vertices': np.array(model['pts'] ).astype(np.float32), 
+        'normals': np.array(model['normals']).astype(np.float32), 
+        'faces': np.array(model['faces']).astype(np.uint32)}
+    if 'colors' in model:
+        attributes['colors'] = np.array(model['colors']).astype(np.uint32)
+    return attributes
 
-
-        # np.save(out_file, attributes)
-        return attributes
+def load_mesh(path):
+    import pyassimp
+    import pyassimp.postprocess
+    scene = pyassimp.load(path, pyassimp.postprocess.aiProcess_Triangulate)
+    mesh = scene.meshes[0]
+    attributes = {
+        "vertices": mesh.vertices,
+        "normals": mesh.normals,
+        "faces": mesh.faces,
+        "colors": mesh.colors
+    }
+    pyassimp.release(scene)
+    return attributes
 
 def calc_normals(vertices):
     normals = np.empty_like(vertices)
@@ -128,26 +105,11 @@ def calc_normals(vertices):
         v3 = vertices[i+2]
         normal = np.cross(v2-v1, v3-v1)
         norm = np.linalg.norm(normal)
-        normal = np.zeros(3) if norm == 0 else normal / norm
+        normal = np.zeros(3) if norm == 0 else normal / norm;
         normals[i] = normal
         normals[i+1] = normal
         normals[i+2] = normal
     return normals
-
-# def calc_normals_with_faces(vertices, faces):
-#     normals = np.empty_like(vertices)
-#     N = vertices.shape[0]
-#     for face in faces:
-#         v1 = vertices[face[0]]
-#         v2 = vertices[face[1]]
-#         v3 = vertices[face[2]]
-#         normal = np.cross(v2-v1, v3-v1)
-#         norm = np.linalg.norm(normal)
-#         normal = np.zeros(3) if norm == 0 else normal / norm
-#         normals[i] = normal
-#         normals[i+1] = normal
-#         normals[i+2] = normal
-#     return normals
 
 # src: https://github.com/JoeyDeVries/LearnOpenGL/blob/master/src/6.pbr/2.2.2.ibl_specular_textured/ibl_specular_textured.cpp
 def sphere(x_segments, y_segments):
