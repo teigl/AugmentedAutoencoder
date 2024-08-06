@@ -38,38 +38,19 @@ class Renderer(object):
         self._fbo.bind()
 
         # VAO
-        if False:
-            attributes = gu.geo.load_meshes(models_cad_files, vertex_tmp_store_folder, recalculate_normals=False)
+        # attributes = gu.geo.load_meshes_sixd(models_cad_files, vertex_tmp_store_folder, recalculate_normals=False)
+        attributes = gu.geo.load_meshes(models_cad_files, vertex_tmp_store_folder, recalculate_normals=False)
 
-            vertices = []
-            indices = []
-            for attribute in attributes:
-                vertex = attribute['vertices']
-                if 'colors' in attribute:
-                    color = attribute['colors']
-                else:
-                    color = np.ones_like(vertex)*160.0
-                indices.append(attribute['faces'].flatten())
-
-                vertices.append(np.hstack((
-                    vertex*vertex_scale, 
-                    attribute['normals'], 
-                    color/255.0)).flatten())
-
-        else:
-            # attributes = gu.geo.load_meshes_sixd(models_cad_files, vertex_tmp_store_folder, recalculate_normals=False)
-            attributes = gu.geo.load_meshes(models_cad_files, vertex_tmp_store_folder, recalculate_normals=False)
-
-            vertices = []
-            indices = []
-            for attribute in attributes:
-                if len(attribute) ==4:
-                    vertex, normal, color, faces = attribute
-                else:
-                    vertex, normal, faces = attribute 
-                    color = np.ones_like(vertex)*160.0
-                indices.append( faces.flatten() )
-                vertices.append(np.hstack((vertex * vertex_scale, normal, color/255.0)).flatten())
+        vertices = []
+        indices = []
+        for attribute in attributes:
+            if len(attribute) ==4:
+                vertex, normal, color, faces = attribute
+            else:
+                vertex, normal, faces = attribute 
+                color = np.ones_like(vertex)*160.0
+            indices.append( faces.flatten() )
+            vertices.append(np.hstack((vertex * vertex_scale, normal, color/255.0)).flatten())
 
         indices = np.hstack(indices).astype(np.uint32)
         vertices = np.hstack(vertices).astype(np.float32)

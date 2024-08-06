@@ -87,6 +87,10 @@ def load_meshes(obj_files, vertex_tmp_store_folder, recalculate_normals=False):
         attributes = []
         for model_path in bar(obj_files):
 
+            if '.obj' in model_path:
+                from . import inout
+                obj = inout.load_obj(model_path)
+
             with pyassimp.load(model_path, pyassimp.postprocess.aiProcess_Triangulate) as scene:
                 print(len(scene.meshes))
                 print(len(scene.meshes))
@@ -106,15 +110,23 @@ def load_meshes(obj_files, vertex_tmp_store_folder, recalculate_normals=False):
                 vertices = []
                 normals = []
                 faces = []
+
+                mesh = scene.meshes[0]
+                print(f"{len(mesh.vertices)} Vertices:")
+                print(mesh.vertices)
+                print(f"{len(mesh.faces)} Faces:")
+                print(mesh.faces)
+                # vertices.extend(mesh.vertices)
+                # normals.extend(mesh.normals)
+                # faces.extend(mesh.faces)
                 for mesh in scene.meshes:
+                    print(len(mesh.vertices))
                     vertices.extend(mesh.vertices)
                     normals.extend(mesh.normals)
                     faces.extend(mesh.faces)
                 attributes.append( (np.array(vertices), np.array(normals), np.array(faces)) )
 
                 # attributes.append( (np.array(mesh.vertices), np.array(mesh.normals), np.array(mesh.faces)) )
-
-
 
         # np.save(out_file, attributes)
         return attributes
