@@ -14,122 +14,64 @@ def load(filename):
     mesh = scene.meshes[0]
     return mesh.vertices, mesh.normals, mesh.texturecoords[0,:,:2]
 
-def load_meshes_sixd( obj_files, vertex_tmp_store_folder , recalculate_normals=False):
-    from . import inout
-    hashed_file_name = hashlib.md5( (''.join(obj_files) + 'load_meshes_sixd' + str(recalculate_normals)).encode("utf-8")).hexdigest() + '.npz'
+def load_meshes(obj_files, vertex_tmp_store_folder):
+    bar = progressbar.ProgressBar()
+    meshes = []
+    for path in bar(obj_files):
+        hashed_file_name = hashlib.md5((''.join(path) + 'load_meshes').encode('utf-8') ).hexdigest() + '.npz'
 
-    attributes = []
-    out_file = os.path.join( vertex_tmp_store_folder, hashed_file_name)
-
-    if os.path.exists(out_file):
-        file = np.load(out_file)
-
-        vertices = file['vertices']
-        normals = file['normals']
-        faces = file['faces']
-        colors = file['colors'] if 'colors' in file else None
-        
-        n_objects = vertices.shape[0]
-        for i in range(n_objects):
-            if 'colors' in file:
-                attributes.append((vertices[i], normals[i], colors[i], faces[i]))
-            else:
-                attributes.append((vertices[i], normals[i], faces[i]))
-
-    else:
-        bar = progressbar.ProgressBar()
-
-        vertices = []
-        normals = []
-        faces = []
-        colors = []
-
-        for model_path in bar(obj_files):
-            model = inout.load_ply(model_path) if '.ply' in model_path else inout.load_obj(model_path)
-            vertices.append(np.array(model['pts'] ).astype(np.float32))
-
-            if recalculate_normals:
-                normals.append(calc_normals(vertices[-1]))
-            else:
-                normals.append(np.array(model['normals']).astype(np.float32))
-
-            faces.append(np.array(model['faces']).astype(np.uint32))
-
-            if 'colors' in model:
-                colors.append(np.array(model['colors']).astype(np.uint32))
-                attributes.append( (vertices[-1], normals[-1], colors[-1], faces[-1]) )
-            else:
-                attributes.append( (vertices[-1], normals[-1], faces[-1]) )
-
-        if len(colors) > 0:
-            np.savez(out_file, 
-                    vertices=np.array(vertices), 
-                    normals=np.array(normals), 
-                    faces=np.array(faces), 
-                    colors=np.array(colors))
+        out_file = os.path.join(vertex_tmp_store_folder, hashed_file_name)
+        if os.path.exists(out_file):
+            file = np.load(out_file)
+            meshes.append((file['positions'],
+                           file['normals'],
+                           file['colors'],
+                           file['indexes']))
         else:
+            meshes.append(load_mesh(path))
             np.savez(out_file, 
-                    vertices=np.array(vertices), 
-                    normals=np.array(normals), 
-                    faces=np.array(faces))
+                     positions=meshes[-1][0],
+                     normals=meshes[-1][1],
+                     colors=meshes[-1][2],
+                     indexes=meshes[-1][3])
+    return meshes
 
-    return attributes
+def load_mesh(path):
+    if '.obj' in path:
+        from . import inout
+        mesh = inout.load_obj(path)
 
+    elif '.ply' in path:
+        model = inout.load_ply(path)
 
-def load_meshes(obj_files, vertex_tmp_store_folder, recalculate_normals=False):
-    hashed_file_name = hashlib.md5((''.join(obj_files) + 'load_meshes' + str(recalculate_normals)).encode('utf-8') ).hexdigest() + '.npz'
+        positions = np.array(model['pts'] ).astype(np.float32)
+        normals = np.array(model['normals']).astype(np.float32)
+        faces = np.array(model['faces']).astype(np.uint32).flatten()
 
-    out_file = os.path.join( vertex_tmp_store_folder, hashed_file_name)
-    if False and os.path.exists(out_file):
-        return np.load(out_file)
+        if 'colors' in model:
+            colors = np.array(model['colors']).astype(np.uint32)
+        else:
+            colors = np.empty_like(positions, dtype=np.float32)
+            colors[:,:] = 160
+
+        mesh = (positions,normals,colors,faces)
+
     else:
-        bar = progressbar.ProgressBar()
-        attributes = []
-        for model_path in bar(obj_files):
+        raise ValueError('Only obj and ply are supported')
+        with pyassimp.load(path, pyassimp.postprocess.aiProcess_Triangulate) as scene:
 
-            if '.obj' in model_path:
-                from . import inout
-                obj = inout.load_obj(model_path)
+            positions = []
+            normals = []
+            faces = []
 
-            with pyassimp.load(model_path, pyassimp.postprocess.aiProcess_Triangulate) as scene:
-                print(len(scene.meshes))
-                print(len(scene.meshes))
-                # mesh = scene.meshes[2]
+            mesh = scene.meshes[0]
+            for mesh in scene.meshes:
+                positions.extend(mesh.vertices)
+                normals.extend(mesh.normals)
+                faces.extend(mesh.faces)
+            return np.array(positions),np.array(normals),np.array(faces)
 
-                # vertices = []
-                # faces = []
-                # for mesh in scene.meshes:
-                #     faces.append(mesh.faces)
-                #     for face in mesh.faces:
-                #         vertices.extend([mesh.vertices[face[0]], mesh.vertices[face[1]], mesh.vertices[face[2]]])
-
-                # vertices = np.array(mesh.vertices)
-                # normals = calc_normals(vertices) if recalculate_normals else mesh.normals
-                # attributes.append( (vertices, normals, mesh.faces) )
-
-                vertices = []
-                normals = []
-                faces = []
-
-                mesh = scene.meshes[0]
-                print(f"{len(mesh.vertices)} Vertices:")
-                print(mesh.vertices)
-                print(f"{len(mesh.faces)} Faces:")
-                print(mesh.faces)
-                # vertices.extend(mesh.vertices)
-                # normals.extend(mesh.normals)
-                # faces.extend(mesh.faces)
-                for mesh in scene.meshes:
-                    print(len(mesh.vertices))
-                    vertices.extend(mesh.vertices)
-                    normals.extend(mesh.normals)
-                    faces.extend(mesh.faces)
-                attributes.append( (np.array(vertices), np.array(normals), np.array(faces)) )
-
-                # attributes.append( (np.array(mesh.vertices), np.array(mesh.normals), np.array(mesh.faces)) )
-
-        # np.save(out_file, attributes)
-        return attributes
+    return mesh
 
 def calc_normals(vertices):
     normals = np.empty_like(vertices)

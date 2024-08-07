@@ -26,12 +26,22 @@ def load_mtl(path):
     return materials
 
 def load_obj(path):
-    obj = {
-        'positions': [],
-        'texcoords': [],
-        'normals': [],
-        'faces': {}
-    }
+    print()
+    print('Loading obj')
+
+    vs = []
+    vts = []
+    vns = []
+
+    positions = []
+    normals = []
+    colors = []
+    indexes = []
+
+    vertexes = {}
+    next_index = 0
+    ambient_colors = {}
+
     with open(path) as file:
 
         for line in file:
@@ -46,22 +56,43 @@ def load_obj(path):
             if key == 'mtllib':
                 cwd = os.getcwd()
                 os.chdir(os.path.dirname(path))
-                obj['materials'] = load_mtl(tokens[1])
+                materials = load_mtl(tokens[1])
                 os.chdir(cwd)
+                for material in materials:
+                    if 'Ka' in materials[material]:
+                        ambient_colors[material] = \
+                            [255*x for x in materials[material]['Ka']]
+
             elif key == 'v':
-                obj['positions'].append([float(x) for x in values])
+                vs.append([float(x) for x in values])
             elif key == 'vt':
-                obj['texcoords'].append([float(x) for x in values])
+                vts.append([float(x) for x in values])
             elif key == 'vn':
-                obj['normals'].append([float(x) for x in values])
+                vns.append([float(x) for x in values])
             elif key == 'usemtl':
                 material = values[0]
-                if not material in obj['faces']:
-                    obj['faces'][material] = []
             elif key == 'f':
-                obj['faces'][material].append([[int(i) for i in value.split("/")] for value in values])
+                
+                for value in values:
+                    if not value in vertexes:
+                        inds = value.split("/")
+                        positions.append(vs[int(inds[0]) - 1])
+                        normals.append(vns[int(inds[2]) - 1])
+                        if material in ambient_colors:
+                            colors.append(ambient_colors[material])
+                        else:
+                            colors.append([160,160,160])
 
-    return obj
+                        vertexes[value] = next_index
+                        indexes.append(next_index)
+                        next_index += 1
+                    else:
+                        indexes.append(vertexes[value])
+        
+    return (np.array(positions, dtype=np.float32),
+            np.array(normals, dtype=np.float32),
+            np.array(colors, dtype=np.float32),
+            np.array(indexes, dtype=np.uint32))
             
 def load_ply(path):
     """

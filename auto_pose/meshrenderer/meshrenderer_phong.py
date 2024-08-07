@@ -39,18 +39,13 @@ class Renderer(object):
 
         # VAO
         # attributes = gu.geo.load_meshes_sixd(models_cad_files, vertex_tmp_store_folder, recalculate_normals=False)
-        attributes = gu.geo.load_meshes(models_cad_files, vertex_tmp_store_folder, recalculate_normals=False)
+        meshes = gu.geo.load_meshes(models_cad_files, vertex_tmp_store_folder)
 
         vertices = []
         indices = []
-        for attribute in attributes:
-            if len(attribute) ==4:
-                vertex, normal, color, faces = attribute
-            else:
-                vertex, normal, faces = attribute 
-                color = np.ones_like(vertex)*160.0
-            indices.append( faces.flatten() )
-            vertices.append(np.hstack((vertex * vertex_scale, normal, color/255.0)).flatten())
+        for mesh in meshes:
+            indices.append(mesh[3])
+            vertices.append(np.hstack((mesh[0] * vertex_scale, mesh[1], mesh[2]/255.0)).flatten())
 
         indices = np.hstack(indices).astype(np.uint32)
         vertices = np.hstack(vertices).astype(np.float32)
@@ -64,14 +59,14 @@ class Renderer(object):
         # IBO
         # print([vert[-1].shape for vert in attributes])
         # vertex_count = [np.prod(attribute['vertices'].shape) for attribute in attributes]
-        vertex_count = [np.prod(vert[-1].shape) for vert in attributes]
-        instance_count = np.ones(len(attributes))
+        vertex_count = [np.prod(vert[-1].shape) for vert in meshes]
+        instance_count = np.ones(len(meshes))
         first_index = [sum(vertex_count[:i]) for i in range(len(vertex_count))]
 
         # vertex_sizes = [attribute['vertices'].shape[0] for attribute in attributes]
-        vertex_sizes = [vert[0].shape[0] for vert in attributes]
+        vertex_sizes = [vert[0].shape[0] for vert in meshes]
         base_vertex = [sum(vertex_sizes[:i]) for i in range(len(vertex_sizes))]
-        base_instance = np.zeros(len(attributes))
+        base_instance = np.zeros(len(meshes))
 
         ibo = gu.IBO(vertex_count, instance_count, first_index, base_vertex, base_instance)
         ibo.bind()
